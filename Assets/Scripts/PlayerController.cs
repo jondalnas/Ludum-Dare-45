@@ -14,8 +14,13 @@ public class PlayerController : MonoBehaviour {
     private float edgeLength;
     private float distArmToFoot;
     private bool climbing;
+    private Vector2 holdingDir;
+    private Vector2[] holdingDirs;
+    EdgeCollider2D[] edges;
+    private int currentEdge;
 
-	public float movementSpeed = 2;
+
+    public float movementSpeed = 2;
 	public float climbSpeed = 2;
 	public float jumpSpeed = 5;
 
@@ -42,7 +47,9 @@ public class PlayerController : MonoBehaviour {
 			//If the player releases the hold button, then stop holding
 			if (!climbing) {
 				holding = null;
-				return;
+                transform.position += (Vector3) (-holdingDir * (transform.lossyScale * (-holdingDir * GetComponent<BoxCollider2D>().size - GetComponent<BoxCollider2D>().offset)).magnitude * 1/2f);
+                Debug.Log(transform.position);
+                return;
 			}
 
 			//Move player so she holds on
@@ -52,13 +59,41 @@ public class PlayerController : MonoBehaviour {
             holdingLocation = Mathf.Clamp01(holdingLocation);
 
             if (holdingLocation >= 1) {
-                holding = null;
-                transform.position += new Vector3(0.125f, distArmToFoot);
-                climbing = false;
-                return;
+                holdingLocation = 0;
+                currentEdge--;
+                if (currentEdge < 0) currentEdge = 3;
+
+                holdingCollider = edges[currentEdge];
+                holdingDir = holdingDirs[currentEdge];
+
+                holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
+                holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
+
+                edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
+            } else if (holdingLocation <= 0) {
+                holdingLocation = 1;
+                currentEdge++;
+                if (currentEdge > 3) currentEdge = 0;
+
+                holdingCollider = edges[currentEdge];
+                holdingDir = holdingDirs[currentEdge];
+
+                holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
+                holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
+
+                edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
             }
 
-			transform.position = holdingPosition();
+			Vector2 newPos = holdingPosition();
+
+            //Check if character is going to end up inside something, if not, then move
+            Debug.Log(Physics2D.OverlapBoxAll(newPos, holding.GetComponent<BoxCollider2D>().size * holding.lossyScale, holding.rotation.z).Length);
+            if (Physics2D.OverlapBoxAll(newPos, holding.GetComponent<BoxCollider2D>().size * holding.lossyScale, holding.rotation.z).Length < 2) {
+                transform.position = newPos;
+            } else {
+                holdingLocation -= climb;
+            }
+
 		} else {
 			rb.simulated = true;
 			//Calculate movement speed
@@ -68,8 +103,8 @@ public class PlayerController : MonoBehaviour {
 			float vertical = 0f;
 			if (Input.GetButtonDown("Jump")) {
 				//Check if player is on ground
-				RaycastHit2D hit = Physics2D.Raycast(foot.position, Vector2.down, distanceToGroundBias);
-
+				RaycastHit2D hit = Physics2D.Raycast(foot.position + Vector3.down * 0.1f, Vector2.down, distanceToGroundBias);
+                
 				if (hit) {
 					vertical += jumpSpeed;
 				}
@@ -83,32 +118,48 @@ public class PlayerController : MonoBehaviour {
     void Update() {
         if (Input.GetButtonDown("Climb")) climbing = true;
         if (Input.GetButtonUp("Climb")) climbing = false;
+
+        Debug.DrawLine(transform.position, transform.position - transform.right, Color.red);
     }
 
     Vector2 holdingPosition() {
-        return ((holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position) * holdingLocation + ((holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position) * (1f - holdingLocation);
+        return (holdingPoses[0]) * holdingLocation + (holdingPoses[1]) * (1f - holdingLocation);
     }
 
 	void OnCollisionEnter2D(Collision2D collision) {
 		//Check if cllision is climbable and that the player is climbing
 		if (collision.gameObject.CompareTag("Climbable")) {
 			if (climbing) {
-				BoxCollider2D col = (BoxCollider2D) collision.collider;
-
-                EdgeCollider2D[] eddges = GetComponentsInChildren<EdgeCollider2D>();
-
-
-
-                if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, Vector2.left, 1f, ~LayerMask.NameToLayer("Player"))) Debug.Log("Hello");
-
                 holding = collision.transform;
+
+                BoxCollider2D col = (BoxCollider2D) collision.collider;
+
+                edges = collision.transform.GetComponents<EdgeCollider2D>();
+
+                holdingDirs = new Vector2[] { col.transform.right, col.transform.up, -col.transform.right, -col.transform.up };
+
+                if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, -col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                    holdingDir = col.transform.right;
+                    currentEdge = 0;
+                } else if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                    holdingDir = -col.transform.right;
+                    currentEdge = 2;
+                } else if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, -col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                    holdingDir = col.transform.up;
+                    currentEdge = 1;
+                } else if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                    holdingDir = -col.transform.up;
+                    currentEdge = 3;
+                }
+
+                holdingCollider = edges[currentEdge];
 
                 holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
                 holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
 
                 edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
 
-                holdingLocation = (holdingPoses[0] - collision.collider.ClosestPoint(arm.position)).magnitude / edgeLength;
+                holdingLocation = (holdingPoses[1] - collision.collider.ClosestPoint(arm.position)).magnitude / edgeLength;
             }
 		}
 	}
