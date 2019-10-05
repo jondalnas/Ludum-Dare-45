@@ -6,10 +6,15 @@ public class CameraController : MonoBehaviour {
 	public Transform player;
 	public Vector3 offset = new Vector3(0, 0, -10);
 
+	void Setup() {
+		if (!player) player = GameObject.FindGameObjectWithTag("Player").transform;
+	}
 	
-	public void updateCamera(Vector2 playerVel) {
+	void Update() {
+		//If there is no player, then don't update the camera
 		if (!player) return;
 
-		transform.position = player.position + offset + (Vector3) playerVel * Time.fixedDeltaTime;
+		//Set position of camera to the players posisiton plus an offset
+		transform.position = player.position + offset;
 	}
 }
