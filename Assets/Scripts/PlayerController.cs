@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class PlayerController : MonoBehaviour {
 	private Rigidbody2D rb;
@@ -8,9 +6,14 @@ public class PlayerController : MonoBehaviour {
 	private Transform foot;
 
 	private Transform holding;
-	private Vector2 holdingLocation;
-	private BoxCollider2D holdingCollider;
-	private float armLength;
+	private float holdingLocation;
+    private EdgeCollider2D holdingCollider;
+    private Vector2[] holdingPoses = new Vector2[2];
+    private float armLength;
+    private Transform arm;
+    private float edgeLength;
+    private float distArmToFoot;
+    private bool climbing;
 
 	public float movementSpeed = 2;
 	public float climbSpeed = 2;
@@ -23,8 +26,10 @@ public class PlayerController : MonoBehaviour {
 		cc = Camera.main.GetComponent<CameraController>();
 		foot = transform.Find("Foot");
 
-		//armLength = transform.Find("Player Arm Front").lossyScale.y;
-	}
+        arm = transform.Find("Sprites").Find("Player Torso").Find("Player Arm Front");
+        armLength = arm.lossyScale.y;
+        distArmToFoot = (arm.position - foot.position).magnitude;
+    }
 	
 	void FixedUpdate() {
 		//Don't run if player doesn't have a rigidbody
@@ -35,16 +40,25 @@ public class PlayerController : MonoBehaviour {
 			rb.simulated = false;
 
 			//If the player releases the hold button, then stop holding
-			if (!Input.GetButton("Climb")) {
+			if (!climbing) {
 				holding = null;
 				return;
 			}
 
 			//Move player so she holds on
-			float climb = Input.GetAxis("Horizontal") * climbSpeed * Time.fixedDeltaTime;
+			float climb = Input.GetAxis("Vertical") * (climbSpeed * Time.fixedDeltaTime / edgeLength);
 
-			holdingLocation = holdingCollider.ClosestPoint(holdingLocation + Vector2.up * climb);
-			transform.position = holdingLocation;
+			holdingLocation += climb;
+            holdingLocation = Mathf.Clamp01(holdingLocation);
+
+            if (holdingLocation >= 1) {
+                holding = null;
+                transform.position += new Vector3(0.125f, distArmToFoot);
+                climbing = false;
+                return;
+            }
+
+			transform.position = holdingPosition();
 		} else {
 			rb.simulated = true;
 			//Calculate movement speed
@@ -66,14 +80,36 @@ public class PlayerController : MonoBehaviour {
 		}
 	}
 
+    void Update() {
+        if (Input.GetButtonDown("Climb")) climbing = true;
+        if (Input.GetButtonUp("Climb")) climbing = false;
+    }
+
+    Vector2 holdingPosition() {
+        return ((holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position) * holdingLocation + ((holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position) * (1f - holdingLocation);
+    }
+
 	void OnCollisionEnter2D(Collision2D collision) {
 		//Check if cllision is climbable and that the player is climbing
 		if (collision.gameObject.CompareTag("Climbable")) {
-			if (Input.GetButton("Climb")) {
-				holding = collision.transform;
-				holdingCollider = (BoxCollider2D) collision.collider;
-				holdingLocation = collision.contacts[0].point;
-			}
+			if (climbing) {
+				BoxCollider2D col = (BoxCollider2D) collision.collider;
+
+                EdgeCollider2D[] eddges = GetComponentsInChildren<EdgeCollider2D>();
+
+
+
+                if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, Vector2.left, 1f, ~LayerMask.NameToLayer("Player"))) Debug.Log("Hello");
+
+                holding = collision.transform;
+
+                holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
+                holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
+
+                edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
+
+                holdingLocation = (holdingPoses[0] - collision.collider.ClosestPoint(arm.position)).magnitude / edgeLength;
+            }
 		}
 	}
 }
