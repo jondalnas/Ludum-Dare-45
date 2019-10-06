@@ -126,9 +126,42 @@ public class PlayerController : MonoBehaviour {
         return (holdingPoses[0]) * holdingLocation + (holdingPoses[1]) * (1f - holdingLocation);
     }
 
-	void OnCollisionEnter2D(Collision2D collision) {
-		//Check if cllision is climbable and that the player is climbing
-		if (collision.gameObject.CompareTag("Climbable")) {
+    private void ragdoll() {
+        Debug.Log("No");
+
+        Transform torso = transform.Find("Sprites").Find("Player Torso");
+
+        foreach (Rigidbody2D r in torso.GetComponentsInChildren<Rigidbody2D>()) {
+            r.simulated = false;
+        }
+
+        foreach (BoxCollider2D c in torso.GetComponentsInChildren<BoxCollider2D>()) {
+            c.enabled = false;
+        }
+
+        torso.GetComponent<Rigidbody2D>().simulated = false;
+        torso.GetComponent<BoxCollider2D>().enabled = false;
+
+        foreach (HingeJoint2D j in torso.GetComponents<HingeJoint2D>()) {
+            j.enabled = false;
+        }
+    }
+
+    private void deRagdoll() {
+        foreach (Rigidbody2D r in transform.Find("Player Torso").GetComponentsInChildren<Rigidbody2D>()) {
+            r.simulated = false;
+        }
+
+        transform.Find("Player Torso").GetComponent<Rigidbody2D>().simulated = false;
+
+        foreach (HingeJoint2D j in transform.Find("Player Torso").GetComponents<HingeJoint2D>()) {
+            j.enabled = false;
+        }
+    }
+
+    void OnCollisionEnter2D(Collision2D collision) {
+        //Check if cllision is climbable and that the player is climbing
+        if (collision.gameObject.CompareTag("Climbable")) {
 			if (climbing) {
                 holding = collision.transform;
 
@@ -160,6 +193,8 @@ public class PlayerController : MonoBehaviour {
                 edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
 
                 holdingLocation = (holdingPoses[1] - collision.collider.ClosestPoint(arm.position)).magnitude / edgeLength;
+
+                ragdoll();
             }
 		}
 	}
