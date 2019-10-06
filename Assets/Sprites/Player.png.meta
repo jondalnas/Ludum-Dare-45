@@ -17,6 +17,9 @@ TextureImporter:
   - first:
       213: 8290463067741641749
     second: Player Head
+  - first:
+      213: -1879306598302859882
+    second: Sword
   externalObjects: {}
   serializedVersion: 10
   mipmaps:
@@ -201,6 +204,27 @@ TextureImporter:
       bones: []
       spriteID: 6847c5d622d8e8a47b3bbc1148ad7b4d
       internalID: 8290463067741641749
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Sword
+      rect:
+        serializedVersion: 2
+        x: 10
+        y: 32
+        width: 4
+        height: 12
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: de80e972ee57c5a4f9daf0f463c0ebc3
+      internalID: -1879306598302859882
       vertices: []
       indices: 
       edges: []

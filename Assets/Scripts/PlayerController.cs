@@ -23,6 +23,7 @@ public class PlayerController : MonoBehaviour {
     private float armDist;
     public float changeArmDistance = 0.25f;
     private int currentArm = -1;
+    public GameObject playerSpritePrefab;
 
     public float movementSpeed = 2;
 	public float climbSpeed = 2;
@@ -53,8 +54,19 @@ public class PlayerController : MonoBehaviour {
 			//If the player releases the hold button, then stop holding
 			if (!climbing) {
 				holding = null;
-                transform.position += (Vector3) (-holdingDir * (transform.lossyScale * (-holdingDir * GetComponent<BoxCollider2D>().size - GetComponent<BoxCollider2D>().offset)).magnitude * 1/2f);
-                deRagdoll();
+                //transform.position += (Vector3) (-holdingDir * (transform.lossyScale * (-holdingDir * GetComponent<BoxCollider2D>().size - GetComponent<BoxCollider2D>().offset)).magnitude * 1/2f);
+                transform.position = transform.Find("Sprites").Find("Player Torso").position;
+                if (holdingDir.y > 0) transform.position += (holdingDir.y * GetComponent<BoxCollider2D>().size.y * 2) * Vector3.up;
+
+                Destroy(transform.Find("Sprites").gameObject);
+                Transform sprites = Instantiate(playerSpritePrefab, transform).transform;
+                sprites.gameObject.name = "Sprites";
+
+                holdingLocation = 0;
+
+                arm = sprites.Find("Player Torso").Find("Player Arm Front");
+                arms = new HingeJoint2D[] { sprites.Find("Player Torso").Find("Player Arm Front").GetComponents<HingeJoint2D>()[1], sprites.Find("Player Torso").Find("Player Arm Back").GetComponents<HingeJoint2D>()[1] };
+                
                 return;
 			}
 
@@ -72,8 +84,8 @@ public class PlayerController : MonoBehaviour {
                 holdingCollider = edges[currentEdge];
                 holdingDir = holdingDirs[currentEdge];
 
-                holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
-                holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
+                holdingPoses[0] = holdingCollider.transform.TransformPoint(holdingCollider.points[0]);
+                holdingPoses[1] = holdingCollider.transform.TransformPoint(holdingCollider.points[1]);
 
                 edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
             } else if (holdingLocation <= 0) {
@@ -84,20 +96,19 @@ public class PlayerController : MonoBehaviour {
                 holdingCollider = edges[currentEdge];
                 holdingDir = holdingDirs[currentEdge];
 
-                holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
-                holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
+                holdingPoses[0] = holdingCollider.transform.TransformPoint(holdingCollider.points[0]);
+                holdingPoses[1] = holdingCollider.transform.TransformPoint(holdingCollider.points[1]);
 
                 edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
             }
 
 			Vector2 newPos = holdingPosition();
 
-            //Check if character is going to end up inside something, if not, then move
-            //Debug.Log(Physics2D.OverlapBoxAll(newPos, transform.GetComponent<BoxCollider2D>().size * transform.lossyScale, transform.rotation.z, ~LayerMask.GetMask("Player"))[0].name + ", " + Physics2D.OverlapBoxAll(newPos, transform.GetComponent<BoxCollider2D>().size * transform.lossyScale, transform.rotation.z, ~LayerMask.GetMask("Player"))[1].name);
-            if (Physics2D.OverlapBoxAll(newPos, transform.GetComponent<BoxCollider2D>().size * transform.lossyScale, transform.rotation.z, ~LayerMask.GetMask("Player")).Length < 2) {
+            //Check if characters hands are going to end up inside something, if not, then move
+            Collider2D[] cols;
+            if ((cols = Physics2D.OverlapCircleAll(newPos, 0.1f, ~(LayerMask.GetMask("Player")))).Length < 2) {
                 transform.position = newPos;
 
-                Debug.Log(currentArm);
                 if (currentArm == -1) {
                     arms[0].connectedAnchor = newPos;
                     arms[1].connectedAnchor = newPos;
@@ -113,6 +124,13 @@ public class PlayerController : MonoBehaviour {
                     if (currentArm >= arms.Length) currentArm = 0;
                 }
             } else {
+                /*foreach (Collider2D col in cols) {
+                    if (!col.CompareTag("Climbable")) break;
+                    else if (col.transform != holding) {
+                        hold((BoxCollider2D) col, col.transform);
+                    }
+                }*/
+
                 holdingLocation -= climb;
             }
 
@@ -134,14 +152,18 @@ public class PlayerController : MonoBehaviour {
 
 			//Update velocity
 			rb.velocity = move * Vector2.right + (rb.velocity.y + vertical) * Vector2.up;
-		}
+
+            RaycastHit2D[] hits = new RaycastHit2D[2];
+            if (Physics2D.RaycastAll(transform.position, rb.velocity * Vector2.right, Mathf.Abs(rb.velocity.x) * Time.fixedDeltaTime, ~(LayerMask.GetMask("Player"))).Length > 0) rb.velocity = Vector2.up * rb.velocity;
+            if (hits.Length != 0 && hits[0].transform) Debug.Log(hits[0].transform.name);
+        }
 	}
 
     void Update() {
         if (Input.GetButtonDown("Climb")) climbing = true;
         if (Input.GetButtonUp("Climb")) climbing = false;
 
-        Debug.DrawLine(transform.position, transform.position - transform.right, Color.red);
+        //Debug.DrawLine(transform.position, transform.position - transform.right, Color.red);
     }
 
     Vector2 holdingPosition() {
@@ -184,39 +206,49 @@ public class PlayerController : MonoBehaviour {
         //Check if cllision is climbable and that the player is climbing
         if (collision.gameObject.CompareTag("Climbable")) {
 			if (climbing) {
-                holding = collision.transform;
-
-                BoxCollider2D col = (BoxCollider2D) collision.collider;
-
-                edges = collision.transform.GetComponents<EdgeCollider2D>();
-
-                holdingDirs = new Vector2[] { col.transform.right, col.transform.up, -col.transform.right, -col.transform.up };
-
-                if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, -col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
-                    holdingDir = col.transform.right;
-                    currentEdge = 0;
-                } else if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
-                    holdingDir = -col.transform.right;
-                    currentEdge = 2;
-                } else if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, -col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
-                    holdingDir = col.transform.up;
-                    currentEdge = 1;
-                } else if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
-                    holdingDir = -col.transform.up;
-                    currentEdge = 3;
-                }
-
-                holdingCollider = edges[currentEdge];
-
-                holdingPoses[0] = (holdingCollider.points[0] * holding.lossyScale) + (Vector2)holding.position;
-                holdingPoses[1] = (holdingCollider.points[1] * holding.lossyScale) + (Vector2)holding.position;
-
-                edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
-
-                holdingLocation = (holdingPoses[1] - collision.collider.ClosestPoint(arm.position)).magnitude / edgeLength;
+                hold((BoxCollider2D) collision.collider, collision.transform);
 
                 ragdoll();
             }
 		}
 	}
+
+    private void hold(BoxCollider2D col, Transform trans) {
+        holding = trans;
+
+        edges = trans.GetComponents<EdgeCollider2D>();
+
+        holdingDirs = new Vector2[] { col.transform.right, col.transform.up, -col.transform.right, -col.transform.up };
+
+        RaycastHit2D[] hit = new RaycastHit2D[3];
+        col.size *= 0.99f;
+        if (col.Cast(-col.transform.right, hit, 1f) > 0) {
+            holdingDir = col.transform.right;
+            currentEdge = 0;
+        } else if (col.Cast(col.transform.right, hit, 1f) > 0) {
+            holdingDir = -col.transform.right;
+            currentEdge = 2;
+        } else if (col.Cast(-col.transform.up, hit, 1f) > 0) {
+            holdingDir = col.transform.up;
+            currentEdge = 1;
+        } else if (col.Cast(col.transform.up, hit, 1f) > 0) {
+            holdingDir = -col.transform.up;
+            currentEdge = 3;
+        }
+
+        col.size /= 0.99f;
+
+        holdingCollider = edges[currentEdge];
+
+        holdingPoses[0] = holdingCollider.transform.TransformPoint(holdingCollider.points[0]);
+        holdingPoses[1] = holdingCollider.transform.TransformPoint(holdingCollider.points[1]);
+
+        
+        Debug.Log(holdingDir);
+        
+
+        edgeLength = (holdingPoses[0] - holdingPoses[1]).magnitude;
+
+        holdingLocation = (holdingPoses[1] - col.ClosestPoint(arm.position)).magnitude / edgeLength;
+    }
 }
