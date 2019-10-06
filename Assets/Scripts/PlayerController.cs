@@ -19,6 +19,10 @@ public class PlayerController : MonoBehaviour {
     EdgeCollider2D[] edges;
     private int currentEdge;
 
+    private HingeJoint2D[] arms;
+    private float armDist;
+    public float changeArmDistance = 0.25f;
+    private int currentArm = -1;
 
     public float movementSpeed = 2;
 	public float climbSpeed = 2;
@@ -34,6 +38,8 @@ public class PlayerController : MonoBehaviour {
         arm = transform.Find("Sprites").Find("Player Torso").Find("Player Arm Front");
         armLength = arm.lossyScale.y;
         distArmToFoot = (arm.position - foot.position).magnitude;
+
+        arms = new HingeJoint2D[] { transform.Find("Sprites").Find("Player Torso").Find("Player Arm Front").GetComponents<HingeJoint2D>()[1] , transform.Find("Sprites").Find("Player Torso").Find("Player Arm Back").GetComponents<HingeJoint2D>()[1] };
     }
 	
 	void FixedUpdate() {
@@ -48,7 +54,7 @@ public class PlayerController : MonoBehaviour {
 			if (!climbing) {
 				holding = null;
                 transform.position += (Vector3) (-holdingDir * (transform.lossyScale * (-holdingDir * GetComponent<BoxCollider2D>().size - GetComponent<BoxCollider2D>().offset)).magnitude * 1/2f);
-                Debug.Log(transform.position);
+                deRagdoll();
                 return;
 			}
 
@@ -87,9 +93,25 @@ public class PlayerController : MonoBehaviour {
 			Vector2 newPos = holdingPosition();
 
             //Check if character is going to end up inside something, if not, then move
-            Debug.Log(Physics2D.OverlapBoxAll(newPos, holding.GetComponent<BoxCollider2D>().size * holding.lossyScale, holding.rotation.z).Length);
-            if (Physics2D.OverlapBoxAll(newPos, holding.GetComponent<BoxCollider2D>().size * holding.lossyScale, holding.rotation.z).Length < 2) {
+            //Debug.Log(Physics2D.OverlapBoxAll(newPos, transform.GetComponent<BoxCollider2D>().size * transform.lossyScale, transform.rotation.z, ~LayerMask.GetMask("Player"))[0].name + ", " + Physics2D.OverlapBoxAll(newPos, transform.GetComponent<BoxCollider2D>().size * transform.lossyScale, transform.rotation.z, ~LayerMask.GetMask("Player"))[1].name);
+            if (Physics2D.OverlapBoxAll(newPos, transform.GetComponent<BoxCollider2D>().size * transform.lossyScale, transform.rotation.z, ~LayerMask.GetMask("Player")).Length < 2) {
                 transform.position = newPos;
+
+                Debug.Log(currentArm);
+                if (currentArm == -1) {
+                    arms[0].connectedAnchor = newPos;
+                    arms[1].connectedAnchor = newPos;
+
+                    currentArm = 0;
+                }
+
+                arms[currentArm].connectedAnchor += (newPos - arms[currentArm].connectedAnchor) * 0.25f;
+                armDist += Mathf.Abs(climb) * edgeLength;
+                if (armDist > changeArmDistance) {
+                    armDist = 0;
+                    currentArm++;
+                    if (currentArm >= arms.Length) currentArm = 0;
+                }
             } else {
                 holdingLocation -= climb;
             }
@@ -127,8 +149,23 @@ public class PlayerController : MonoBehaviour {
     }
 
     private void ragdoll() {
-        Debug.Log("No");
+        Transform torso = transform.Find("Sprites").Find("Player Torso");
 
+        foreach (Rigidbody2D r in torso.GetComponentsInChildren<Rigidbody2D>()) {
+            r.simulated = true;
+        }
+
+        foreach (BoxCollider2D c in torso.GetComponentsInChildren<BoxCollider2D>()) {
+            c.enabled = true;
+        }
+
+        torso.GetComponent<Rigidbody2D>().simulated = true;
+        torso.GetComponent<BoxCollider2D>().enabled = true;
+
+        currentArm = -1;
+    }
+
+    private void deRagdoll() {
         Transform torso = transform.Find("Sprites").Find("Player Torso");
 
         foreach (Rigidbody2D r in torso.GetComponentsInChildren<Rigidbody2D>()) {
@@ -141,22 +178,6 @@ public class PlayerController : MonoBehaviour {
 
         torso.GetComponent<Rigidbody2D>().simulated = false;
         torso.GetComponent<BoxCollider2D>().enabled = false;
-
-        foreach (HingeJoint2D j in torso.GetComponents<HingeJoint2D>()) {
-            j.enabled = false;
-        }
-    }
-
-    private void deRagdoll() {
-        foreach (Rigidbody2D r in transform.Find("Player Torso").GetComponentsInChildren<Rigidbody2D>()) {
-            r.simulated = false;
-        }
-
-        transform.Find("Player Torso").GetComponent<Rigidbody2D>().simulated = false;
-
-        foreach (HingeJoint2D j in transform.Find("Player Torso").GetComponents<HingeJoint2D>()) {
-            j.enabled = false;
-        }
     }
 
     void OnCollisionEnter2D(Collision2D collision) {
@@ -171,16 +192,16 @@ public class PlayerController : MonoBehaviour {
 
                 holdingDirs = new Vector2[] { col.transform.right, col.transform.up, -col.transform.right, -col.transform.up };
 
-                if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, -col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, -col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
                     holdingDir = col.transform.right;
                     currentEdge = 0;
-                } else if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                } else if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, col.transform.right, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
                     holdingDir = -col.transform.right;
                     currentEdge = 2;
-                } else if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, -col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                } else if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, -col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
                     holdingDir = col.transform.up;
                     currentEdge = 1;
-                } else if (Physics2D.BoxCast(col.transform.position, col.size * 0.9f, col.transform.rotation.z, col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
+                } else if (Physics2D.BoxCast(col.transform.position, col.size, col.transform.rotation.z, col.transform.up, 1f, 1 << LayerMask.NameToLayer("Player")).transform) {
                     holdingDir = -col.transform.up;
                     currentEdge = 3;
                 }
