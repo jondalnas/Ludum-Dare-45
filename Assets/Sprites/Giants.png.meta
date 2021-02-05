@@ -113,12 +113,12 @@ TextureImporter:
       name: Giant 1 Leg
       rect:
         serializedVersion: 2
-        x: 4
+        x: 0
         y: 32
-        width: 8
-        height: 25
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+        width: 16
+        height: 32
+      alignment: 9
+      pivot: {x: 0.37080103, y: 0.7777778}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -134,12 +134,12 @@ TextureImporter:
       name: Giant 1 Torso
       rect:
         serializedVersion: 2
-        x: 21
+        x: 16
         y: 32
-        width: 6
-        height: 22
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+        width: 16
+        height: 32
+      alignment: 9
+      pivot: {x: 0.5, y: 0.45}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -155,12 +155,12 @@ TextureImporter:
       name: Giant 1 Arm
       rect:
         serializedVersion: 2
-        x: 38
+        x: 32
         y: 32
-        width: 4
-        height: 15
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+        width: 16
+        height: 32
+      alignment: 9
+      pivot: {x: 0.5, y: 0.45478034}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -176,12 +176,12 @@ TextureImporter:
       name: Giant 1 Head
       rect:
         serializedVersion: 2
-        x: 53
+        x: 48
         y: 32
-        width: 7
-        height: 10
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+        width: 16
+        height: 16
+      alignment: 9
+      pivot: {x: 0.5, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
